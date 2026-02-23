@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>微信加热平台 - 采集数据展示</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: "Microsoft YaHei", sans-serif; margin: 0; padding: 16px; background: #f5f5f5; }
+    .tabs { display: flex; gap: 0; margin-bottom: 16px; }
+    .tabs a { padding: 10px 20px; background: #e0e0e0; text-decoration: none; color: #333; border-radius: 8px 8px 0 0; }
+    .tabs a.active { background: #fff; font-weight: 600; }
+    .tab-content { display: none; background: #fff; padding: 16px; border-radius: 0 8px 8px 8px; }
+    .tab-content.active { display: block; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; padding: 12px; background: #fff; border-radius: 8px; }
+    .toolbar label { margin-right: 4px; }
+    .toolbar input, .toolbar select { padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; }
+    .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    .btn-primary { background: #07c160; color: #fff; }
+    .btn-primary:hover { background: #06ad56; }
+    .btn-export { background: #1989fa; color: #fff; }
+    .btn-export:hover { background: #0d7de0; }
+    .account-cards { display: flex; flex-wrap: wrap; gap: 16px; }
+    .account-card { padding: 16px; border: 1px solid #e0e0e0; border-radius: 8px; min-width: 240px; background: #fafafa; }
+    .account-card h4 { margin: 0 0 8px 0; font-size: 16px; }
+    .account-card .meta { color: #666; font-size: 12px; margin-bottom: 12px; }
+    .account-card .btn { margin-right: 8px; margin-top: 4px; }
+    .btn-danger { background: #ee0a24; color: #fff; }
+    .btn-danger:hover { background: #c9091c; }
+    .add-account-btn { padding: 12px 24px; background: #07c160; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; margin-bottom: 16px; }
+    .add-account-btn:hover { background: #06ad56; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+    .modal.visible { display: flex; }
+    .modal-content { background: #fff; padding: 24px; border-radius: 8px; min-width: 360px; }
+    .modal-content h3 { margin: 0 0 16px 0; }
+    .modal-content label { display: block; margin-bottom: 4px; font-size: 13px; }
+    .modal-content input { width: 100%; padding: 8px; margin-bottom: 12px; }
+    .modal-content .hint { font-size: 12px; color: #666; margin-bottom: 16px; }
+    .modal-content .btns { display: flex; gap: 8px; justify-content: flex-end; }
+    .table-wrap { overflow-x: auto; background: #fff; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
+    th { background: #fafafa; font-weight: 600; cursor: pointer; }
+    th:hover { background: #f0f0f0; }
+    tr:hover { background: #f9f9f9; }
+    .pagination { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+    .pagination span { color: #666; }
+    .config-panel { margin-bottom: 16px; padding: 12px; background: #fff; border-radius: 8px; }
+    .config-panel h3 { margin: 0 0 12px 0; font-size: 14px; }
+    .log-panel { max-height: 200px; overflow-y: auto; padding: 12px; background: #1e1e1e; color: #d4d4d4; font-family: monospace; font-size: 12px; border-radius: 8px; margin-top: 16px; display: none; }
+    .log-panel.visible { display: block; }
+  </style>
+</head>
+<body>
+  <div class="tabs">
+    <a href="#accounts" id="tab-accounts" class="active">账号管理</a>
+    <a href="#data" id="tab-data">数据展示</a>
+  </div>
+
+  <div id="panel-accounts" class="tab-content active">
+    <button class="add-account-btn" onclick="requestAddAccount()">+ 添加账号</button>
+    <div class="account-cards" id="accountCards"></div>
+  </div>
+
+  <div id="panel-data" class="tab-content">
+    <div class="config-panel">
+      <h3>配置</h3>
+      <div class="toolbar">
+        <label>模式：</label>
+        <select id="mode">
+          <option value="prod">生产模式</option>
+          <option value="dev">开发模式（显示采集过程）</option>
+        </select>
+        <label>分辨率：</label>
+        <select id="resolution">
+          <option value="1920x1080">1920×1080 (Full HD)</option>
+          <option value="2560x1440">2560×1440 (2K)</option>
+          <option value="3840x2160">3840×2160 (4K)</option>
+          <option value="1366x768">1366×768</option>
+          <option value="1536x864">1536×864</option>
+          <option value="1600x900">1600×900</option>
+          <option value="1680x1050">1680×1050</option>
+          <option value="1280x800">1280×800</option>
+          <option value="1280x720">1280×720 (HD)</option>
+          <option value="1440x900">1440×900</option>
+          <option value="2560x1600">2560×1600</option>
+          <option value="2880x1800">2880×1800 (Retina)</option>
+          <option value="2560x1080">2560×1080 (21:9)</option>
+          <option value="3440x1440">3440×1440 (21:9)</option>
+          <option value="3840x1600">3840×1600 (21:9)</option>
+        </select>
+      </div>
+    </div>
+    <div class="toolbar">
+      <label>订单ID：</label>
+      <input type="text" id="promotion_id" placeholder="模糊搜索">
+      <label>主播：</label>
+      <input type="text" id="nick_name" placeholder="模糊搜索">
+      <label>订单名：</label>
+      <input type="text" id="order_name" placeholder="模糊搜索">
+      <label>消耗>：</label>
+      <input type="number" id="cost_min" placeholder="元" style="width:80px">
+      <button class="btn btn-primary" onclick="loadData(1)">查询</button>
+      <button class="btn btn-export" onclick="exportXlsx()">导出 xlsx</button>
+    </div>
+    <div class="table-wrap">
+      <table id="dataTable">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="pagination" id="pagination"></div>
+    <div class="log-panel" id="logPanel"></div>
+  </div>
+
+  <div id="collectModal" class="modal">
+    <div class="modal-content">
+      <h3>采集订单数据</h3>
+      <p class="hint">开始时间、结束时间均为可选。不选=全量；仅开始=开始之后；仅结束=结束之前；都选=区间内。已采集的订单会自动跳过。</p>
+      <label>开始时间</label>
+      <input type="datetime-local" id="collectStartTime">
+      <label>结束时间</label>
+      <input type="datetime-local" id="collectEndTime">
+      <div class="btns">
+        <button class="btn" onclick="closeCollectModal()">取消</button>
+        <button class="btn btn-primary" onclick="submitCollect()">开始采集</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allCols = [];
+    let sortBy = 'create_time';
+    let sortOrder = 'desc';
+    let collectAccountId = '';
+
+    const API = window.location.origin;
+
+    function switchTab(hash) {
+      document.querySelectorAll('.tabs a').forEach(a => a.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(p => p.classList.remove('active'));
+      const tab = (hash === '#data' || hash === 'data') ? 'data' : 'accounts';
+      document.getElementById('tab-' + tab).classList.add('active');
+      document.getElementById('panel-' + tab).classList.add('active');
+      if (tab === 'accounts') loadAccounts();
+      if (tab === 'data') loadData(1);
+    }
+
+    window.onhashchange = () => switchTab(window.location.hash);
+    if (window.location.hash !== '#accounts' && window.location.hash !== '#data') {
+      window.location.hash = '#accounts';
+    } else {
+      switchTab(window.location.hash);
+    }
+
+    function loadAccounts() {
+      fetch(API + '/api/accounts').then(r => r.json()).then(accounts => {
+        const el = document.getElementById('accountCards');
+        if (!accounts.length) {
+          el.innerHTML = '<p style="color:#666">暂无账号，点击「添加账号」扫码登录后自动保存</p>';
+          return;
+        }
+        el.innerHTML = accounts.map(a => `
+          <div class="account-card">
+            <h4>${escapeHtml(a.account_name || '未命名')}</h4>
+            <div class="meta">${escapeHtml(a.video_account || '') || '-'}</div>
+            <button class="btn btn-primary" onclick="openCollectModal('${a.id}')">采集订单数据</button>
+            <button class="btn btn-danger" onclick="deleteAccount('${a.id}')">删除</button>
+          </div>
+        `).join('');
+      });
+    }
+
+    function deleteAccount(accountId) {
+      if (!confirm('确定删除该账号？删除后其 cookie 将被清除，订单数据保留。')) return;
+      fetch(API + '/api/accounts/' + encodeURIComponent(accountId), { method: 'DELETE' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) loadAccounts();
+          else alert(data.error || '删除失败');
+        })
+        .catch(() => alert('删除失败'));
+    }
+
+    function requestAddAccount() {
+      fetch(API + '/api/request_add_account', { method: 'POST' }).then(r => r.json()).then(() => {
+        const tip = document.createElement('div');
+        tip.textContent = '已发送请求，请到浏览器窗口扫码登录';
+        tip.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#07c160;color:#fff;padding:12px 24px;border-radius:8px;z-index:9999;font-size:14px;';
+        document.body.appendChild(tip);
+        setTimeout(() => tip.remove(), 3000);
+      });
+    }
+
+    function openCollectModal(accountId) {
+      collectAccountId = accountId;
+      document.getElementById('collectStartTime').value = '';
+      document.getElementById('collectEndTime').value = '';
+      document.getElementById('collectModal').classList.add('visible');
+    }
+
+    function closeCollectModal() {
+      document.getElementById('collectModal').classList.remove('visible');
+    }
+
+    function submitCollect() {
+      let start = document.getElementById('collectStartTime').value;
+      let end = document.getElementById('collectEndTime').value;
+      if (start) { start = start.replace('T', ' '); if (start.length === 16) start += ':00'; }
+      if (end) { end = end.replace('T', ' '); if (end.length === 16) end += ':00'; }
+      fetch(API + '/api/request_collect', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ account_id: collectAccountId, start_time: start, end_time: end })
+      }).then(r => r.json()).then(() => {
+        closeCollectModal();
+        const tip = document.createElement('div');
+        tip.textContent = '已发送采集请求，请到浏览器窗口查看采集进度';
+        tip.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#07c160;color:#fff;padding:12px 24px;border-radius:8px;z-index:9999;font-size:14px;';
+        document.body.appendChild(tip);
+        setTimeout(() => tip.remove(), 3000);
+      });
+    }
+
+    function loadData(page) {
+      const params = new URLSearchParams({
+        page: page || 1,
+        page_size: 20,
+        sort_by: sortBy,
+        sort_order: sortOrder
+      });
+      const pid = document.getElementById('promotion_id').value.trim();
+      const nick = document.getElementById('nick_name').value.trim();
+      const oname = document.getElementById('order_name').value.trim();
+      const cost = document.getElementById('cost_min').value;
+      if (pid) params.set('promotion_id', pid);
+      if (nick) params.set('nick_name', nick);
+      if (oname) params.set('order_name', oname);
+      if (cost) params.set('cost_min', cost);
+
+      fetch(API + '/api/data?' + params)
+        .then(r => r.json())
+        .then(data => {
+          const { rows, total, page: p, page_size } = data;
+          if (!rows.length) {
+            document.getElementById('thead').innerHTML = '';
+            document.getElementById('tbody').innerHTML = '<tr><td colspan="100">暂无数据</td></tr>';
+            document.getElementById('pagination').innerHTML = '';
+            return;
+          }
+          const cols = Object.keys(rows[0]);
+          if (cols.length > allCols.length) allCols = cols;
+          const colsToShow = [...new Set([...allCols, ...cols])].sort((a,b) => {
+            const order = ['promotion_id', 'orders_nick_name', 'orders_order_name', 'orders_cost_yuan', 'orders_create_time', 'orders_status', 'orders_target'];
+            const ia = order.indexOf(a), ib = order.indexOf(b);
+            if (ia>=0 && ib>=0) return ia - ib;
+            if (ia>=0) return -1;
+            if (ib>=0) return 1;
+            return a.localeCompare(b);
+          });
+
+          let thead = '<tr>';
+          colsToShow.forEach(c => {
+            const arrow = (sortBy === c || sortBy === c.replace('orders_','')) ? (sortOrder === 'desc' ? '▼' : '▲') : '';
+            thead += `<th onclick="sortByCol('${c}')">${c} ${arrow}</th>`;
+          });
+          thead += '</tr>';
+          document.getElementById('thead').innerHTML = thead;
+
+          let tbody = '';
+          rows.forEach(r => {
+            tbody += '<tr>';
+            colsToShow.forEach(c => {
+              let v = r[c];
+              if (v === null || v === undefined) v = '';
+              else if (typeof v === 'object') v = JSON.stringify(v);
+              tbody += `<td>${escapeHtml(String(v))}</td>`;
+            });
+            tbody += '</tr>';
+          });
+          document.getElementById('tbody').innerHTML = tbody;
+
+          const totalPages = Math.ceil(total / page_size) || 1;
+          let pag = '<span>共 ' + total + ' 条</span>';
+          if (p > 1) pag += `<button class="btn" onclick="loadData(${p-1})">上一页</button>`;
+          pag += `<span>第 ${p} / ${totalPages} 页</span>`;
+          if (p < totalPages) pag += `<button class="btn" onclick="loadData(${p+1})">下一页</button>`;
+          document.getElementById('pagination').innerHTML = pag;
+        })
+        .catch(e => console.error(e));
+    }
+
+    function sortByCol(col) {
+      const dbCol = col.startsWith('orders_') ? col.replace('orders_', '') : col;
+      if (['promotion_id','nick_name','create_time','cost_yuan','status','target','order_name','budget','duration','join_count','exposure_count','product_click_count'].includes(dbCol)) {
+        sortBy = dbCol;
+      } else {
+        sortBy = 'create_time';
+      }
+      sortOrder = sortOrder === 'desc' ? 'asc' : 'desc';
+      loadData(1);
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s || '';
+      return d.innerHTML;
+    }
+
+    function exportXlsx() {
+      const params = new URLSearchParams({
+        sort_by: sortBy,
+        sort_order: sortOrder
+      });
+      const pid = document.getElementById('promotion_id').value.trim();
+      const nick = document.getElementById('nick_name').value.trim();
+      const oname = document.getElementById('order_name').value.trim();
+      const cost = document.getElementById('cost_min').value;
+      if (pid) params.set('promotion_id', pid);
+      if (nick) params.set('nick_name', nick);
+      if (oname) params.set('order_name', oname);
+      if (cost) params.set('cost_min', cost);
+      window.location.href = API + '/api/export?' + params;
+    }
+
+    document.getElementById('mode').onchange = saveConfig;
+    document.getElementById('resolution').onchange = saveConfig;
+
+    function saveConfig() {
+      fetch(API + '/api/config', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          mode: document.getElementById('mode').value,
+          resolution: document.getElementById('resolution').value
+        })
+      });
+      const panel = document.getElementById('logPanel');
+      panel.classList.toggle('visible', document.getElementById('mode').value === 'dev');
+    }
+
+    function loadConfig() {
+      fetch(API + '/api/config').then(r => r.json()).then(cfg => {
+        document.getElementById('mode').value = cfg.mode || 'prod';
+        document.getElementById('resolution').value = cfg.resolution || '1280x800';
+        document.getElementById('logPanel').classList.toggle('visible', cfg.mode === 'dev');
+      });
+    }
+
+    function pollLogs() {
+      if (document.getElementById('mode').value !== 'dev') return;
+      fetch(API + '/api/logs?lines=50').then(r => r.json()).then(data => {
+        const panel = document.getElementById('logPanel');
+        if (data.lines && data.lines.length) {
+          panel.textContent = data.lines.join('');
+          panel.scrollTop = panel.scrollHeight;
+        }
+      });
+    }
+
+    loadConfig();
+    setInterval(() => { if (window.location.hash === '#data') loadData(1); }, 30000);
+    setInterval(() => { if (window.location.hash === '#accounts') loadAccounts(); }, 5000);
+    setInterval(pollLogs, 2000);
+  </script>
+</body>
+</html>
