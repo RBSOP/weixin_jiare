@@ -1,0 +1,10 @@
+auth_state.json
+output/
+data/
+logs/
+*.db
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
