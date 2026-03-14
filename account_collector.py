@@ -7,7 +7,7 @@ from pathlib import Path
 from playwright.sync_api import Page, Response
 
 from config import ACCOUNT_COOKIE_DIR, HOME_URL
-from db import save_account
+from db import get_account_by_name, save_account
 from logger import TAG_MAIN, log
 
 ACCOUNT_INFO_URL = "https://channels.weixin.qq.com/promote/pages/platform/common-account-info"
@@ -97,10 +97,11 @@ def extract_account_from_home(page: Page) -> tuple[str, str]:
             api_data.append({"url": url, "data": data})
 
     page.on("response", on_response)
-    page.goto(HOME_URL, wait_until="networkidle")
+    page.goto(HOME_URL, wait_until="domcontentloaded")
     page.wait_for_timeout(2500)
-    page.goto(ACCOUNT_INFO_URL, wait_until="networkidle")
+    page.goto(ACCOUNT_INFO_URL, wait_until="domcontentloaded")
     page.wait_for_timeout(2500)
+    page.remove_listener("response", on_response)
 
     for item in api_data:
         raw = item.get("data") or {}
@@ -124,11 +125,11 @@ def extract_account_from_home(page: Page) -> tuple[str, str]:
         try:
             text = page.content()
             if not account_name:
-                m = re.search(r'["'](?:nickName|nick_name|accountName|name|corpName)["']\s*:\s*["']([^"']+)["']', text)
+                m = re.search(r"""["'](?:nickName|nick_name|accountName|name|corpName)["']\s*:\s*["']([^"']+)["']""", text)
                 if m:
                     account_name = m.group(1)
             if not video_account:
-                m = re.search(r'["'](?:videoAccount|video_account|finderId|finder_id)["']\s*:\s*["']([^"']+)["']', text)
+                m = re.search(r"""["'](?:videoAccount|video_account|finderId|finder_id)["']\s*:\s*["']([^"']+)["']""", text)
                 if m:
                     video_account = m.group(1)
         except Exception:
@@ -154,9 +155,16 @@ def add_account_flow(page: Page, context) -> dict | None:
     page.wait_for_timeout(2000)
     log(TAG_MAIN, "提取账号信息...")
     account_name, video_account = extract_account_from_home(page)
-    account_id = str(uuid.uuid4())[:8]
-    Path(ACCOUNT_COOKIE_DIR).mkdir(parents=True, exist_ok=True)
-    cookie_path = str(Path(ACCOUNT_COOKIE_DIR) / f"{account_id}.json")
+    existing = get_account_by_name(account_name)
+    if existing:
+        account_id = existing["id"]
+        cookie_path = existing["cookie_path"]
+        log(TAG_MAIN, f"同名账号已存在，更新: {account_name} / {video_account}")
+    else:
+        account_id = str(uuid.uuid4())[:8]
+        Path(ACCOUNT_COOKIE_DIR).mkdir(parents=True, exist_ok=True)
+        cookie_path = str(Path(ACCOUNT_COOKIE_DIR) / f"{account_id}.json")
+        log(TAG_MAIN, f"新账号: {account_name} / {video_account}")
     context.storage_state(path=cookie_path)
     save_account(account_id, account_name, video_account, cookie_path)
     log(TAG_MAIN, f"账号已保存: {account_name} / {video_account}")

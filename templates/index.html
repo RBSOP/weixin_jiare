@@ -37,18 +37,56 @@
     .modal-content input { width: 100%; padding: 8px; margin-bottom: 12px; }
     .modal-content .hint { font-size: 12px; color: #666; margin-bottom: 16px; }
     .modal-content .btns { display: flex; gap: 8px; justify-content: flex-end; }
-    .table-wrap { overflow-x: auto; background: #fff; border-radius: 8px; }
-    table { width: 100%; border-collapse: collapse; }
+    .table-scroll-outer { position: relative; }
+    .table-wrap { overflow-x: scroll; background: #fff; border-radius: 8px; scrollbar-width: none; -ms-overflow-style: none; }
+    .table-wrap::-webkit-scrollbar { display: none; }
+    .sticky-scrollbar { position: sticky; bottom: 0; overflow-x: auto; overflow-y: hidden; height: 17px; background: #eee; border-radius: 0 0 8px 8px; z-index: 10; }
+    .sticky-scrollbar-inner { height: 1px; }
+    table { width: 100%; border-collapse: collapse; table-layout: auto; }
     th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; white-space: nowrap; }
-    th { background: #fafafa; font-weight: 600; cursor: pointer; }
+    th { background: #fafafa; font-weight: 600; cursor: pointer; font-size: 13px; }
     th:hover { background: #f0f0f0; }
+    tr.header-group th { text-align: center; font-size: 14px; border-bottom: 2px solid; cursor: default; color: #fff; }
+    tr.header-group th:hover { opacity: 0.95; }
+    tr.header-group th.cat-orders { background: #1989fa; border-color: #0d6edb; }
+    tr.header-group th.cat-heating { background: #0d9488; border-color: #0f766e; }
+    tr.header-group th.cat-create { background: #07c160; border-color: #059a4c; }
+    tr.header-group th.cat-detail { background: #ff976a; border-color: #e07840; }
+    tr.header-group th.cat-effect { background: #ff976a; border-color: #e07840; }
+    tr.header-group th.cat-ecommeffect { background: #ee0a24; border-color: #c50a1f; }
+    tr.header-group th.cat-tenmin { background: #9c27b0; border-color: #7b1fa2; }
+    tr.header-group th.cat-ecommerce { background: #ee0a24; border-color: #c50a1f; }
+    tr.header-group th.cat-funnel { background: #7232dd; border-color: #5b28b0; }
+    tr.header-group th.cat-pref { background: #ed6a0c; border-color: #c45a0a; }
+    tr.header-group th.cat-crowd { background: #e91e63; border-color: #c2185b; }
+    tr.header-group th.cat-gender { background: #00bcd4; border-color: #0097a7; }
+    tr.header-group th.cat-age { background: #8bc34a; border-color: #689f38; }
+    tr.header-group th.cat-region { background: #ff9800; border-color: #f57c00; }
+    tr.header-group th.cat-screenshot { background: #607d8b; border-color: #455a64; }
+    tr.header-group th.cat-other { background: #969799; border-color: #787b7d; }
+    th.col-orders { background: #ecf5ff; }
+    th.col-heating { background: #ccfbf1; }
+    th.col-create { background: #edfff3; }
+    th.col-detail { background: #fff5f0; }
+    th.col-effect { background: #fff5f0; }
+    th.col-ecommeffect { background: #fff0f0; }
+    th.col-tenmin { background: #f3e5f5; }
+    th.col-ecommerce { background: #fff0f0; }
+    th.col-funnel { background: #f5efff; }
+    th.col-pref { background: #fff5eb; }
+    th.col-crowd { background: #fce4ec; }
+    th.col-gender { background: #e0f7fa; }
+    th.col-age { background: #f1f8e9; }
+    th.col-region { background: #fff3e0; }
+    th.col-screenshot { background: #eceff1; }
+    th.col-other { background: #f7f8fa; }
     tr:hover { background: #f9f9f9; }
+    td.col-wrap, th.col-wrap { white-space: nowrap; }
+    td.col-interest, th.col-interest { white-space: nowrap; }
     .pagination { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
     .pagination span { color: #666; }
     .config-panel { margin-bottom: 16px; padding: 12px; background: #fff; border-radius: 8px; }
     .config-panel h3 { margin: 0 0 12px 0; font-size: 14px; }
-    .log-panel { max-height: 200px; overflow-y: auto; padding: 12px; background: #1e1e1e; color: #d4d4d4; font-family: monospace; font-size: 12px; border-radius: 8px; margin-top: 16px; display: none; }
-    .log-panel.visible { display: block; }
   </style>
 </head>
 <body>
@@ -68,8 +106,8 @@
       <div class="toolbar">
         <label>模式：</label>
         <select id="mode">
-          <option value="prod">生产模式</option>
-          <option value="dev">开发模式（显示采集过程）</option>
+          <option value="prod">生产模式（无头浏览器）</option>
+          <option value="dev">开发模式（有头浏览器，可看采集过程）</option>
         </select>
         <label>分辨率：</label>
         <select id="resolution">
@@ -100,17 +138,34 @@
       <input type="text" id="order_name" placeholder="模糊搜索">
       <label>消耗>：</label>
       <input type="number" id="cost_min" placeholder="元" style="width:80px">
+      <label>每页：</label>
+      <input type="number" id="page_size" min="1" max="1000" value="20" placeholder="条数" style="width:72px;padding:6px 8px;border:1px solid #ddd;border-radius:4px" onchange="applyPageSize()" onkeydown="if(event.key==='Enter')applyPageSize()">
       <button class="btn btn-primary" onclick="loadData(1)">查询</button>
       <button class="btn btn-export" onclick="exportXlsx()">导出 xlsx</button>
+      <button class="btn btn-danger" onclick="clearAllData()">一键删除</button>
     </div>
-    <div class="table-wrap">
-      <table id="dataTable">
-        <thead id="thead"></thead>
-        <tbody id="tbody"></tbody>
-      </table>
+    <div class="table-scroll-outer">
+      <div class="table-wrap" id="tableWrap">
+        <table id="dataTable">
+          <thead id="thead"></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="sticky-scrollbar" id="stickyScrollbar">
+        <div class="sticky-scrollbar-inner" id="stickyScrollbarInner"></div>
+      </div>
     </div>
     <div class="pagination" id="pagination"></div>
-    <div class="log-panel" id="logPanel"></div>
+  </div>
+
+  <div id="screenshotModal" class="modal" onclick="if(event.target===this)closeScreenshotModal()">
+    <div class="modal-content" style="max-width:95vw;max-height:95vh;display:flex;flex-direction:column;overflow:hidden">
+      <h3 id="screenshotModalTitle" style="flex-shrink:0">截图</h3>
+      <div id="screenshotContainer" style="flex:1;overflow:auto;min-height:0"></div>
+      <div class="btns" style="margin-top:12px;flex-shrink:0">
+        <button class="btn" onclick="closeScreenshotModal()">关闭</button>
+      </div>
+    </div>
   </div>
 
   <div id="collectModal" class="modal">
@@ -133,8 +188,272 @@
     let sortBy = 'create_time';
     let sortOrder = 'desc';
     let collectAccountId = '';
+    let currentPage = 1;
 
     const API = window.location.origin;
+
+    const ORDERS_COL_MAP = {
+      'orders_nick_name': '加热主播',
+      'orders_create_time': '创建时间',
+      'orders_order_name': '名称',
+      'promotion_id': '编号',
+      'orders_target': '目标',
+      'orders_status': '状态',
+      'orders_budget': '预算',
+      'orders_bid_roi': '出价/目标ROI',
+      'orders_duration': '实际加热时长',
+      'orders_cost_yuan': '消耗',
+      'orders_actual_roi': 'ROI',
+    };
+    const HIDE_COLS = new Set([
+      'orders_account_id', 'orders_cost', 'orders_created_at',
+      'orders_join_count', 'orders_exposure_count', 'orders_product_click_count',
+      'orders_promotion_id',
+    ]);
+    const HEATING_INFO_COL_ORDER = [
+      'detail_加热信息_订单名称', 'detail_加热信息_编号', 'detail_加热信息_加热目标',
+      'detail_加热信息_状态', 'detail_加热信息_加热预算', 'detail_加热信息_预计时长',
+      'detail_加热信息_下单时间', 'detail_加热信息_开始时间', 'detail_加热信息_结束时间',
+      'detail_加热信息_实际加热时长', 'detail_加热信息_加热出价', 'detail_加热信息_放量模式',
+      'detail_加热信息_人群定向_观众性别', 'detail_加热信息_人群定向_根据粉丝层推荐',
+      'detail_加热信息_人群定向_根据名单推荐', 'detail_加热信息_人群定向_观众城市',
+      'detail_加热信息_人群定向_观众年龄', 'detail_加热信息_人群定向_观众设备',
+      'detail_加热信息_人群定向_观众兴趣',
+    ];
+    const EFFECT_SUMMARY_COL_ORDER = [
+      'detail_直播间加热效果_消耗总金额', 'detail_直播间加热效果_曝光总人数',
+      'detail_直播间加热效果_进入总人数', 'detail_直播间加热效果_点赞总次数',
+      'detail_直播间加热效果_评论总次数', 'detail_直播间加热效果_新增总关注',
+    ];
+    const ECOMMERCE_EFFECT_COL_ORDER = [
+      'detail_电商加热效果_总成交ROI', 'detail_电商加热效果_成交GMV',
+      'detail_电商加热效果_商品点击人数', 'detail_电商加热效果_商品点击次数',
+      'detail_电商加热效果_下单订单数', 'detail_电商加热效果_下单GMV',
+      'detail_电商加热效果_成交订单数',
+    ];
+    const TEN_MIN_COL_ORDER = [
+      'detail_十分钟级数据_时间', 'detail_十分钟级数据_直播间消耗',
+      'detail_十分钟级数据_直播间曝光人数', 'detail_十分钟级数据_直播间观看人数',
+      'detail_十分钟级数据_直播间点赞次数', 'detail_十分钟级数据_直播间评论次数',
+      'detail_十分钟级数据_直播间新增粉丝数',
+    ];
+    const TEN_MIN_COLS = new Set(TEN_MIN_COL_ORDER);
+    const ECOMMERCE_COL_ORDER = [
+      'ecommerce_总消耗', 'ecommerce_直接成交金额', 'ecommerce_直接成交订单数', 'ecommerce_直接成交ROI',
+      'ecommerce_直播间曝光人数', 'ecommerce_短视频曝光次数', 'ecommerce_直播间观看人数', 'ecommerce_直播间商品点击率',
+      'ecommerce_直播间平均千次展示费用', 'ecommerce_总成交ROI', 'ecommerce_间接成交金额', 'ecommerce_直播间观看人次',
+      'ecommerce_加热主播与创建时间', 'ecommerce_名称与编号', 'ecommerce_加热开始时间', 'ecommerce_加热结束时间',
+      'ecommerce_实际加热时长', 'ecommerce_直播间进入率（人数）', 'ecommerce_GPM', 'ecommerce_直播间转化率', 'ecommerce_直播间转化成本',
+    ];
+    const PEOPLE_FUNNEL_COL_ORDER = [
+      'people_funnel_直播间曝光人数', 'people_funnel_直播间观看人数', 'people_funnel_商品曝光人数',
+      'people_funnel_商品点击人数', 'people_funnel_总下单人数', 'people_funnel_总成交人数',
+      'people_funnel_直播间点击率', 'people_funnel_商品曝光率', 'people_funnel_商品点击率',
+      'people_funnel_点击下单率', 'people_funnel_下单成交率', 'people_funnel_总成交转化率',
+    ];
+    const PEOPLE_FEATURE_BLOCK_ORDER = [
+      'people_feature_观众商品偏好_1','people_feature_观众商品偏好_2','people_feature_观众商品偏好_3','people_feature_观众商品偏好_4','people_feature_观众商品偏好_5','people_feature_观众商品偏好_6','people_feature_观众商品偏好_7','people_feature_观众商品偏好_8',
+      'people_feature_八类人群占比_1','people_feature_八类人群占比_2','people_feature_八类人群占比_3','people_feature_八类人群占比_4','people_feature_八类人群占比_5','people_feature_八类人群占比_6','people_feature_八类人群占比_7','people_feature_八类人群占比_8',
+      'people_feature_性别分布_1','people_feature_性别分布_2',
+      'people_feature_年龄分布_1','people_feature_年龄分布_2','people_feature_年龄分布_3','people_feature_年龄分布_4','people_feature_年龄分布_5','people_feature_年龄分布_6','people_feature_年龄分布_7','people_feature_年龄分布_8',
+      'people_feature_地域分布_1','people_feature_地域分布_2','people_feature_地域分布_3','people_feature_地域分布_4','people_feature_地域分布_5','people_feature_地域分布_6','people_feature_地域分布_7','people_feature_地域分布_8',
+    ];
+    const TEN_MIN_DISPLAY_NAMES = {
+      'detail_十分钟级数据_时间': '时间',
+      'detail_十分钟级数据_直播间消耗': '直播间消耗',
+      'detail_十分钟级数据_直播间曝光人数': '直播间曝光人数',
+      'detail_十分钟级数据_直播间观看人数': '直播间观看人数',
+      'detail_十分钟级数据_直播间点赞次数': '直播间点赞次数',
+      'detail_十分钟级数据_直播间评论次数': '直播间评论次数',
+      'detail_十分钟级数据_直播间新增粉丝数': '直播间新增粉丝数',
+    };
+    const HEATING_INFO_ALLOWED = new Set(HEATING_INFO_COL_ORDER);
+    function isColHidden(col) {
+      if (HIDE_COLS.has(col)) return true;
+      if (col.startsWith('detail_加热信息') && !HEATING_INFO_ALLOWED.has(col)) return true;
+      if (col.startsWith('ecommerce_') && !ECOMMERCE_COL_ORDER.includes(col)) return true;
+      if (/^people_feature_性别分布_[3-8]$/.test(col)) return true;
+      if (getColCategory(col) === '其他') return true;
+      return false;
+    }
+    const CATEGORY_PREFIXES = [
+      { prefix: 'orders_', label: '订单基本信息', cls: 'orders' },
+      { prefix: 'detail_直播间加热效果', label: '直播间加热效果', cls: 'effect' },
+      { prefix: 'detail_电商加热效果', label: '电商加热效果(详情)', cls: 'ecommeffect' },
+      { prefix: 'create_config_', label: '再来一单配置', cls: 'create' },
+      { prefix: 'detail_加热信息', label: '加热信息', cls: 'heating' },
+      { prefix: 'detail_十分钟级数据', label: '十分钟级数据', cls: 'tenmin' },
+      { prefix: 'detail_', label: '其他', cls: 'other' },
+      { prefix: 'ecommerce_', label: '电商加热效果', cls: 'ecommerce' },
+      { prefix: 'people_funnel_', label: '人群漏斗', cls: 'funnel' },
+      { prefix: 'people_feature_观众商品偏好_', label: '观众商品偏好', cls: 'pref' },
+      { prefix: 'people_feature_八类人群占比_', label: '八类人群占比', cls: 'crowd' },
+      { prefix: 'people_feature_性别分布_', label: '性别分布', cls: 'gender' },
+      { prefix: 'people_feature_年龄分布_', label: '年龄分布', cls: 'age' },
+      { prefix: 'people_feature_地域分布_', label: '地域分布', cls: 'region' },
+      { prefix: 'screenshot_', label: '截图', cls: 'screenshot' },
+    ];
+    const CREATE_CONFIG_COL_ORDER = [
+      'create_config_选择加热类型_加热对象类型',
+      'create_config_选择加热类型_加热订单类型',
+      'create_config_选择加热对象_主播昵称',
+      'create_config_选择加热方案_预计带来商品成交金额',
+      'create_config_选择加热方案_基础信息_订单名称',
+      'create_config_选择加热方案_基础信息_加热方式',
+      'create_config_选择加热方案_基础信息_放量模式',
+      'create_config_选择加热方案_基础信息_优先提升目标',
+      'create_config_选择加热方案_基础信息_成交ROI',
+      'create_config_选择加热方案_基础信息_加热素材',
+      'create_config_预算与时间_订单预算',
+      'create_config_预算与时间_加热时长',
+      'create_config_人群定向_定向类型',
+      'create_config_人群定向_观众性别',
+      'create_config_人群定向_根据粉丝层推荐',
+      'create_config_人群定向_根据名单推荐',
+      'create_config_人群定向_观众年龄',
+      'create_config_人群定向_观众设备',
+      'create_config_人群定向_观众城市',
+      'create_config_人群定向_观众兴趣',
+      'create_config_其他_其他支付方式',
+    ];
+
+    const SCREENSHOT_COLS = ['screenshot_create_config', 'screenshot_order_detail', 'screenshot_ecommerce', 'screenshot_people'];
+    const SCREENSHOT_LABELS = {
+      'screenshot_create_config': '再来一单配置',
+      'screenshot_order_detail': '订单详情',
+      'screenshot_ecommerce': '电商加热效果',
+      'screenshot_people': '人群分析',
+    };
+    function getColCategory(col) {
+      if (col === 'promotion_id') return '订单基本信息';
+      if (SCREENSHOT_COLS.includes(col)) return '截图';
+      for (const cat of CATEGORY_PREFIXES) {
+        if (col.startsWith(cat.prefix)) return cat.label;
+      }
+      return '其他';
+    }
+
+    function getColCls(col) {
+      if (col === 'promotion_id') return 'orders';
+      if (SCREENSHOT_COLS.includes(col)) return 'screenshot';
+      for (const cat of CATEGORY_PREFIXES) {
+        if (col.startsWith(cat.prefix)) return cat.cls;
+      }
+      return 'other';
+    }
+
+    const CREATE_CONFIG_DISPLAY_NAMES = {
+      'create_config_人群定向_观众年龄': '观众年龄',
+    };
+    const HEATING_INFO_DISPLAY_NAMES = {
+      'detail_加热信息_订单名称': '名称',
+      'detail_加热信息_人群定向_观众性别': '观众性别',
+      'detail_加热信息_人群定向_根据粉丝层推荐': '根据粉丝层推荐',
+      'detail_加热信息_人群定向_根据名单推荐': '根据名单推荐',
+      'detail_加热信息_人群定向_观众城市': '观众城市',
+      'detail_加热信息_人群定向_观众年龄': '观众年龄',
+      'detail_加热信息_人群定向_观众设备': '观众设备',
+      'detail_加热信息_人群定向_观众兴趣': '观众兴趣',
+    };
+    function getColDisplayName(col) {
+      if (ORDERS_COL_MAP[col]) return ORDERS_COL_MAP[col];
+      if (CREATE_CONFIG_DISPLAY_NAMES[col]) return CREATE_CONFIG_DISPLAY_NAMES[col];
+      if (HEATING_INFO_DISPLAY_NAMES[col]) return HEATING_INFO_DISPLAY_NAMES[col];
+      if (TEN_MIN_DISPLAY_NAMES[col]) return TEN_MIN_DISPLAY_NAMES[col];
+      if (col.startsWith('detail_直播间加热效果_')) return col.substring(14).replace(/_/g, ' ');
+      if (col.startsWith('detail_电商加热效果_')) return col.substring('detail_电商加热效果_'.length).replace(/_/g, ' ');
+      if (SCREENSHOT_LABELS[col]) return SCREENSHOT_LABELS[col];
+      if (col.startsWith('people_feature_')) {
+        const parts = col.split('_', 4);
+        if (parts.length >= 4) return parts[2] + parts[3];
+      }
+      for (const cat of CATEGORY_PREFIXES) {
+        if (cat.prefix && col.startsWith(cat.prefix)) {
+          let suffix = col.substring(cat.prefix.length).replace(/^_/, '');
+          if (cat.prefix === 'detail_加热信息' && suffix.startsWith('人群定向_')) suffix = suffix.substring(7);
+          return suffix.replace(/_/g, ' ').trim();
+        }
+      }
+      return col;
+    }
+
+    function sortColsByCategory(cols) {
+      const catOrder = CATEGORY_PREFIXES.map(c => c.label);
+      catOrder.push('其他');
+      const priorityOrder = Object.keys(ORDERS_COL_MAP);
+      const createOrderMap = {};
+      CREATE_CONFIG_COL_ORDER.forEach((k, i) => { createOrderMap[k] = i; });
+      const heatingOrderMap = {};
+      HEATING_INFO_COL_ORDER.forEach((k, i) => { heatingOrderMap[k] = i; });
+      const effectOrderMap = {};
+      EFFECT_SUMMARY_COL_ORDER.forEach((k, i) => { effectOrderMap[k] = i; });
+      const ecommEffectOrderMap = {};
+      ECOMMERCE_EFFECT_COL_ORDER.forEach((k, i) => { ecommEffectOrderMap[k] = i; });
+      const tenMinOrderMap = {};
+      TEN_MIN_COL_ORDER.forEach((k, i) => { tenMinOrderMap[k] = i; });
+      const ecommerceOrderMap = {};
+      ECOMMERCE_COL_ORDER.forEach((k, i) => { ecommerceOrderMap[k] = i; });
+      const peopleFunnelOrderMap = {};
+      PEOPLE_FUNNEL_COL_ORDER.forEach((k, i) => { peopleFunnelOrderMap[k] = i; });
+      const peopleFeatureOrderMap = {};
+      PEOPLE_FEATURE_BLOCK_ORDER.forEach((k, i) => { peopleFeatureOrderMap[k] = i; });
+      return cols.filter(c => !isColHidden(c)).sort((a, b) => {
+        const catA = catOrder.indexOf(getColCategory(a));
+        const catB = catOrder.indexOf(getColCategory(b));
+        if (catA !== catB) return catA - catB;
+        if (a.startsWith('detail_加热信息') && b.startsWith('detail_加热信息')) {
+          const idxA = heatingOrderMap[a] !== undefined ? heatingOrderMap[a] : 9999;
+          const idxB = heatingOrderMap[b] !== undefined ? heatingOrderMap[b] : 9999;
+          return idxA - idxB;
+        }
+        if (a.startsWith('detail_直播间加热效果') && b.startsWith('detail_直播间加热效果')) {
+          const idxA = effectOrderMap[a] !== undefined ? effectOrderMap[a] : 9999;
+          const idxB = effectOrderMap[b] !== undefined ? effectOrderMap[b] : 9999;
+          return idxA - idxB;
+        }
+        if (a.startsWith('detail_电商加热效果') && b.startsWith('detail_电商加热效果')) {
+          const idxA = ecommEffectOrderMap[a] !== undefined ? ecommEffectOrderMap[a] : 9999;
+          const idxB = ecommEffectOrderMap[b] !== undefined ? ecommEffectOrderMap[b] : 9999;
+          return idxA - idxB;
+        }
+        if (a.startsWith('detail_十分钟级数据') && b.startsWith('detail_十分钟级数据')) {
+          const idxA = tenMinOrderMap[a] !== undefined ? tenMinOrderMap[a] : 9999;
+          const idxB = tenMinOrderMap[b] !== undefined ? tenMinOrderMap[b] : 9999;
+          return idxA - idxB;
+        }
+        if (a.startsWith('create_config_') && b.startsWith('create_config_')) {
+          const idxA = createOrderMap[a] !== undefined ? createOrderMap[a] : 9999;
+          const idxB = createOrderMap[b] !== undefined ? createOrderMap[b] : 9999;
+          return idxA - idxB;
+        }
+        if (a.startsWith('ecommerce_') && b.startsWith('ecommerce_')) {
+          const idxA = ecommerceOrderMap[a] !== undefined ? ecommerceOrderMap[a] : 9999;
+          const idxB = ecommerceOrderMap[b] !== undefined ? ecommerceOrderMap[b] : 9999;
+          return idxA - idxB;
+        }
+        if (a.startsWith('people_funnel_') && b.startsWith('people_funnel_')) {
+          const idxA = peopleFunnelOrderMap[a] !== undefined ? peopleFunnelOrderMap[a] : 9999;
+          const idxB = peopleFunnelOrderMap[b] !== undefined ? peopleFunnelOrderMap[b] : 9999;
+          return idxA - idxB;
+        }
+        if (a.startsWith('people_feature_') && b.startsWith('people_feature_')) {
+          const idxA = peopleFeatureOrderMap[a] !== undefined ? peopleFeatureOrderMap[a] : 9999;
+          const idxB = peopleFeatureOrderMap[b] !== undefined ? peopleFeatureOrderMap[b] : 9999;
+          return idxA - idxB;
+        }
+        if (SCREENSHOT_COLS.includes(a) && SCREENSHOT_COLS.includes(b)) {
+          return SCREENSHOT_COLS.indexOf(a) - SCREENSHOT_COLS.indexOf(b);
+        }
+        if (SCREENSHOT_COLS.includes(a)) return 1;
+        if (SCREENSHOT_COLS.includes(b)) return -1;
+        const pA = priorityOrder.indexOf(a);
+        const pB = priorityOrder.indexOf(b);
+        if (pA >= 0 && pB >= 0) return pA - pB;
+        if (pA >= 0) return -1;
+        if (pB >= 0) return 1;
+        return a.localeCompare(b);
+      });
+    }
 
     function switchTab(hash) {
       document.querySelectorAll('.tabs a').forEach(a => a.classList.remove('active'));
@@ -165,6 +484,7 @@
             <h4>${escapeHtml(a.account_name || '未命名')}</h4>
             <div class="meta">${escapeHtml(a.video_account || '') || '-'}</div>
             <button class="btn btn-primary" onclick="openCollectModal('${a.id}')">采集订单数据</button>
+            <button class="btn btn-export" onclick="openBrowser('${a.id}')">打开浏览器</button>
             <button class="btn btn-danger" onclick="deleteAccount('${a.id}')">删除</button>
           </div>
         `).join('');
@@ -192,6 +512,20 @@
       });
     }
 
+    function openBrowser(accountId) {
+      fetch(API + '/api/request_open_browser', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ account_id: accountId })
+      }).then(r => r.json()).then(() => {
+        const tip = document.createElement('div');
+        tip.textContent = '正在打开浏览器，请稍候...';
+        tip.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#1989fa;color:#fff;padding:12px 24px;border-radius:8px;z-index:9999;font-size:14px;';
+        document.body.appendChild(tip);
+        setTimeout(() => tip.remove(), 3000);
+      });
+    }
+
     function openCollectModal(accountId) {
       collectAccountId = accountId;
       document.getElementById('collectStartTime').value = '';
@@ -201,6 +535,45 @@
 
     function closeCollectModal() {
       document.getElementById('collectModal').classList.remove('visible');
+    }
+
+    function loadScreenshot(promotionId, pageType) {
+      const container = document.getElementById('screenshotContainer');
+      const titleEl = document.getElementById('screenshotModalTitle');
+      const label = SCREENSHOT_LABELS['screenshot_' + pageType] || pageType;
+      titleEl.textContent = label + '截图';
+      container.innerHTML = '<p style="color:#666">加载中...</p>';
+      document.getElementById('screenshotModal').classList.add('visible');
+      document.addEventListener('keydown', _screenshotModalEscHandler);
+      fetch(API + '/api/screenshot/' + encodeURIComponent(promotionId) + '/' + pageType)
+        .then(r => {
+          if (!r.ok) {
+            container.innerHTML = '<p style="color:#999">暂无截图（需重新采集）</p>';
+            return;
+          }
+          return r.blob();
+        })
+        .then(blob => {
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            container.innerHTML = '<img src="' + url + '" style="max-width:100%;display:block" alt="' + label + '截图">';
+          }
+        })
+        .catch(() => {
+          container.innerHTML = '<p style="color:#999">加载失败</p>';
+        });
+    }
+
+    function closeScreenshotModal() {
+      document.getElementById('screenshotModal').classList.remove('visible');
+      document.removeEventListener('keydown', _screenshotModalEscHandler);
+      const img = document.querySelector('#screenshotContainer img');
+      if (img && img.src && img.src.startsWith('blob:')) {
+        URL.revokeObjectURL(img.src);
+      }
+    }
+    function _screenshotModalEscHandler(e) {
+      if (e.key === 'Escape') closeScreenshotModal();
     }
 
     function submitCollect() {
@@ -223,9 +596,13 @@
     }
 
     function loadData(page) {
+      currentPage = page || 1;
+      let pageSize = parseInt(document.getElementById('page_size').value, 10) || 20;
+      if (pageSize < 1) pageSize = 20;
+      if (pageSize > 1000) pageSize = 1000;
       const params = new URLSearchParams({
-        page: page || 1,
-        page_size: 20,
+        page: currentPage,
+        page_size: pageSize,
         sort_by: sortBy,
         sort_order: sortOrder
       });
@@ -246,48 +623,134 @@
             document.getElementById('thead').innerHTML = '';
             document.getElementById('tbody').innerHTML = '<tr><td colspan="100">暂无数据</td></tr>';
             document.getElementById('pagination').innerHTML = '';
+            syncStickyScrollbar();
             return;
           }
           const cols = Object.keys(rows[0]);
           if (cols.length > allCols.length) allCols = cols;
-          const colsToShow = [...new Set([...allCols, ...cols])].sort((a,b) => {
-            const order = ['promotion_id', 'orders_nick_name', 'orders_order_name', 'orders_cost_yuan', 'orders_create_time', 'orders_status', 'orders_target'];
-            const ia = order.indexOf(a), ib = order.indexOf(b);
-            if (ia>=0 && ib>=0) return ia - ib;
-            if (ia>=0) return -1;
-            if (ib>=0) return 1;
-            return a.localeCompare(b);
+          const colsToShow = sortColsByCategory([...new Set([...allCols, ...cols, ...SCREENSHOT_COLS])]);
+
+          const groups = [];
+          let curGroup = null;
+          colsToShow.forEach(c => {
+            const cat = getColCategory(c);
+            const cls = getColCls(c);
+            if (!curGroup || curGroup.label !== cat) {
+              curGroup = { label: cat, cls: cls, cols: [c] };
+              groups.push(curGroup);
+            } else {
+              curGroup.cols.push(c);
+            }
           });
 
-          let thead = '<tr>';
-          colsToShow.forEach(c => {
-            const arrow = (sortBy === c || sortBy === c.replace('orders_','')) ? (sortOrder === 'desc' ? '▼' : '▲') : '';
-            thead += `<th onclick="sortByCol('${c}')">${c} ${arrow}</th>`;
+          let row1 = '<tr class="header-group">';
+          groups.forEach(g => {
+            row1 += `<th colspan="${g.cols.length}" class="cat-${g.cls}">${g.label}</th>`;
           });
-          thead += '</tr>';
-          document.getElementById('thead').innerHTML = thead;
+          row1 += '</tr>';
+
+          let row2 = '<tr>';
+          colsToShow.forEach(c => {
+            const arrow = (sortBy === c || sortBy === c.replace('orders_','')) ? (sortOrder === 'desc' ? ' ▼' : ' ▲') : '';
+            const wrapCls = (c === 'create_config_人群定向_观众兴趣' || c === 'detail_加热信息_人群定向_观众兴趣') ? ' col-interest' : (c === 'ecommerce_名称与编号' || c === 'ecommerce_加热主播与创建时间') ? ' col-wrap' : '';
+            const onclick = SCREENSHOT_COLS.includes(c) ? '' : ` onclick="sortByCol('${c}')"`;
+            row2 += `<th class="col-${getColCls(c)}${wrapCls}"${onclick}>${getColDisplayName(c)}${arrow}</th>`;
+          });
+          row2 += '</tr>';
+          document.getElementById('thead').innerHTML = row1 + row2;
+
+          const groupsByPid = [];
+          let curPid = null;
+          let curPidRows = [];
+          rows.forEach(r => {
+            const pid = (r.promotion_id || '') + '';
+            if (pid !== curPid) {
+              if (curPidRows.length) groupsByPid.push(curPidRows);
+              curPidRows = [r];
+              curPid = pid;
+            } else {
+              curPidRows.push(r);
+            }
+          });
+          if (curPidRows.length) groupsByPid.push(curPidRows);
+
+          function fmtCellVal(r, c, v) {
+            if (v === null || v === undefined) v = '';
+            else if (typeof v === 'object') v = JSON.stringify(v);
+            else if (c === 'orders_create_time' && v && /^\d{9,10}$/.test(String(v))) v = formatTs(v);
+            else if (c === 'orders_status') v = formatStatus(v);
+            else if (c === 'orders_duration') v = formatDuration(v);
+            else if (c === 'orders_budget') v = formatBudget(v);
+            else if (c === 'orders_cost_yuan') v = Number(v) ? Number(v).toFixed(1) : v;
+            else if (c === 'orders_actual_roi') v = Number(v) ? Number(v).toFixed(2) : '0';
+            else if (c === 'ecommerce_直播间商品点击率') v = (v !== '' && Number(v) != null && !isNaN(Number(v))) ? Number(v).toFixed(2) + '%' : v;
+            else if (['ecommerce_直接成交金额', 'ecommerce_间接成交金额', 'ecommerce_直播间平均千次展示费用', 'ecommerce_GPM', 'ecommerce_直播间转化成本'].includes(c)) v = (v !== '' && Number(v) != null && !isNaN(Number(v))) ? '￥' + Number(v).toFixed(2) : v;
+            else if (c === 'ecommerce_直播间进入率（人数）' || c === 'ecommerce_直播间转化率') v = (v !== '' && Number(v) != null && !isNaN(Number(v))) ? Number(v).toFixed(2) + '%' : v;
+            else if (['people_funnel_直播间点击率', 'people_funnel_商品曝光率', 'people_funnel_商品点击率', 'people_funnel_点击下单率', 'people_funnel_下单成交率'].includes(c)) v = (v !== '' && Number(v) != null && !isNaN(Number(v))) ? Number(v).toFixed(2) + '%' : v;
+            else if (c === 'people_funnel_总成交转化率') v = (v !== '' && Number(v) != null && !isNaN(Number(v))) ? Number(v).toFixed(4) + '%' : v;
+            if (c === 'create_config_人群定向_观众兴趣' || c === 'detail_加热信息_人群定向_观众兴趣') {
+              if (v) v = String(v).replace(/[、\n]+/g, '，').replace(/，+/g, '，').replace(/^，|，$/g, '');
+            }
+            return escapeHtml(String(v));
+          }
 
           let tbody = '';
-          rows.forEach(r => {
-            tbody += '<tr>';
-            colsToShow.forEach(c => {
-              let v = r[c];
-              if (v === null || v === undefined) v = '';
-              else if (typeof v === 'object') v = JSON.stringify(v);
-              tbody += `<td>${escapeHtml(String(v))}</td>`;
+          groupsByPid.forEach(group => {
+            const rowspan = group.length;
+            group.forEach((r, ri) => {
+              tbody += '<tr>';
+              colsToShow.forEach(c => {
+                let v = r[c];
+                let tdClass = (c === 'create_config_人群定向_观众兴趣' || c === 'detail_加热信息_人群定向_观众兴趣') ? ' class="col-interest"' : (c === 'ecommerce_名称与编号' || c === 'ecommerce_加热主播与创建时间') ? ' class="col-wrap"' : '';
+                if (SCREENSHOT_COLS.includes(c)) {
+                  if (ri === 0) {
+                    const pid = (r.promotion_id || '').replace(/'/g, "\\'");
+                    const pageType = c.replace('screenshot_', '');
+                    tbody += `<td${tdClass} rowspan="${rowspan}" style="vertical-align:middle"><button class="btn btn-export" onclick="loadScreenshot('${pid}','${pageType}')">查看</button></td>`;
+                  }
+                } else if (TEN_MIN_COLS.has(c)) {
+                  tbody += `<td${tdClass}>${fmtCellVal(r, c, v)}</td>`;
+                } else {
+                  if (ri === 0) {
+                    tbody += `<td${tdClass} rowspan="${rowspan}" style="vertical-align:middle">${fmtCellVal(r, c, v)}</td>`;
+                  }
+                }
+              });
+              tbody += '</tr>';
             });
-            tbody += '</tr>';
           });
           document.getElementById('tbody').innerHTML = tbody;
 
           const totalPages = Math.ceil(total / page_size) || 1;
-          let pag = '<span>共 ' + total + ' 条</span>';
-          if (p > 1) pag += `<button class="btn" onclick="loadData(${p-1})">上一页</button>`;
+          let pag = `<span>共 ${total} 条</span>`;
+          pag += `<button class="btn" ${p <= 1 ? 'disabled' : ''} onclick="loadData(1)">首页</button>`;
+          pag += `<button class="btn" ${p <= 1 ? 'disabled' : ''} onclick="loadData(${p-1})">上一页</button>`;
           pag += `<span>第 ${p} / ${totalPages} 页</span>`;
-          if (p < totalPages) pag += `<button class="btn" onclick="loadData(${p+1})">下一页</button>`;
+          pag += `<button class="btn" ${p >= totalPages ? 'disabled' : ''} onclick="loadData(${p+1})">下一页</button>`;
+          pag += `<button class="btn" ${p >= totalPages ? 'disabled' : ''} onclick="loadData(${totalPages})">末页</button>`;
+          pag += `<span>跳转至</span><input type="number" id="pageJumpInput" min="1" max="${totalPages}" value="${p}" placeholder="页数" style="width:56px;padding:4px 8px;border:1px solid #ddd;border-radius:4px" onkeydown="if(event.key==='Enter'){goToPage(${totalPages})}">`;
+          pag += `<button class="btn" onclick="goToPage(${totalPages})">跳转</button>`;
           document.getElementById('pagination').innerHTML = pag;
+          syncStickyScrollbar();
         })
         .catch(e => console.error(e));
+    }
+
+    function applyPageSize() {
+      const el = document.getElementById('page_size');
+      if (!el) return;
+      let v = parseInt(el.value, 10);
+      if (isNaN(v) || v < 1) v = 20;
+      if (v > 1000) v = 1000;
+      el.value = v;
+      loadData(1);
+    }
+
+    function goToPage(totalPages) {
+      const el = document.getElementById('pageJumpInput');
+      if (!el) return;
+      const v = parseInt(el.value, 10);
+      if (!isNaN(v) && v >= 1 && v <= totalPages) loadData(v);
     }
 
     function sortByCol(col) {
@@ -301,10 +764,64 @@
       loadData(1);
     }
 
+    const STATUS_MAP = {
+      '0':'待审核','1':'待开始','2':'投放中','3':'已完成',
+      '4':'已拒绝','5':'已取消','6':'已暂停','7':'审核中',
+      '8':'已预约','9':'预约取消',
+    };
+
+    function formatStatus(v) {
+      const s = String(v);
+      return STATUS_MAP[s] || s;
+    }
+
+    function formatDuration(sec) {
+      const s = parseInt(sec);
+      if (!s || isNaN(s)) return '-';
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      if (h > 0 && m > 0) return `${h}小时${m}分钟`;
+      if (h > 0) return `${h}小时`;
+      return `${m}分钟`;
+    }
+
+    function formatBudget(v) {
+      const n = Number(v);
+      if (!n) return '-';
+      return (n / 10).toFixed(0);
+    }
+
+    function formatTs(ts) {
+      const d = new Date(Number(ts) * 1000);
+      if (isNaN(d.getTime())) return ts;
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
     function escapeHtml(s) {
       const d = document.createElement('div');
       d.textContent = s || '';
       return d.innerHTML;
+    }
+
+    function clearAllData() {
+      if (!confirm('确定删除所有订单数据和截图吗？\n\n此操作不可恢复！账号信息将保留。')) return;
+      if (!confirm('再次确认：所有订单、配置、详情、统计数据和截图都将被永久删除！')) return;
+      fetch(API + '/api/clear_all_data', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok) {
+            const tip = document.createElement('div');
+            tip.textContent = '已删除 ' + (data.deleted_orders || 0) + ' 条订单及相关数据';
+            tip.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#ee0a24;color:#fff;padding:12px 24px;border-radius:8px;z-index:9999;font-size:14px;';
+            document.body.appendChild(tip);
+            setTimeout(() => tip.remove(), 3000);
+            loadData(1);
+          } else {
+            alert(data.error || '删除失败');
+          }
+        })
+        .catch(() => alert('删除失败'));
     }
 
     function exportXlsx() {
@@ -335,33 +852,39 @@
           resolution: document.getElementById('resolution').value
         })
       });
-      const panel = document.getElementById('logPanel');
-      panel.classList.toggle('visible', document.getElementById('mode').value === 'dev');
     }
 
     function loadConfig() {
       fetch(API + '/api/config').then(r => r.json()).then(cfg => {
         document.getElementById('mode').value = cfg.mode || 'prod';
         document.getElementById('resolution').value = cfg.resolution || '1280x800';
-        document.getElementById('logPanel').classList.toggle('visible', cfg.mode === 'dev');
       });
     }
 
-    function pollLogs() {
-      if (document.getElementById('mode').value !== 'dev') return;
-      fetch(API + '/api/logs?lines=50').then(r => r.json()).then(data => {
-        const panel = document.getElementById('logPanel');
-        if (data.lines && data.lines.length) {
-          panel.textContent = data.lines.join('');
-          panel.scrollTop = panel.scrollHeight;
-        }
-      });
+    const _tableWrap = document.getElementById('tableWrap');
+    const _stickyBar = document.getElementById('stickyScrollbar');
+    const _stickyInner = document.getElementById('stickyScrollbarInner');
+    let _syncingScroll = false;
+    _tableWrap.addEventListener('scroll', () => {
+      if (_syncingScroll) return;
+      _syncingScroll = true;
+      _stickyBar.scrollLeft = _tableWrap.scrollLeft;
+      _syncingScroll = false;
+    });
+    _stickyBar.addEventListener('scroll', () => {
+      if (_syncingScroll) return;
+      _syncingScroll = true;
+      _tableWrap.scrollLeft = _stickyBar.scrollLeft;
+      _syncingScroll = false;
+    });
+    function syncStickyScrollbar() {
+      const table = document.getElementById('dataTable');
+      if (table) _stickyInner.style.width = table.scrollWidth + 'px';
     }
 
     loadConfig();
-    setInterval(() => { if (window.location.hash === '#data') loadData(1); }, 30000);
+    setInterval(() => { if (window.location.hash === '#data') loadData(currentPage); }, 30000);
     setInterval(() => { if (window.location.hash === '#accounts') loadAccounts(); }, 5000);
-    setInterval(pollLogs, 2000);
   </script>
 </body>
 </html>

@@ -19,4 +19,4 @@ def goto_detail_page(page, promotion_id: str) -> None:
     :param promotion_id: 订单 ID
     """
     url = build_detail_url(promotion_id)
-    page.goto(url, wait_until="networkidle")
+    page.goto(url, wait_until="domcontentloaded")

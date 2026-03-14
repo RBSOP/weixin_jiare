@@ -7,6 +7,7 @@ from playwright.sync_api import Page, Response
 from config import PEOPLE_STATISTIC_URL
 from db import save_order_people_statistic
 from logger import TAG_PEOPLE, log
+from screenshot_util import capture_page_screenshot
 
 API_USER_FEATURE = "getLivePromotionOrderUserFeature"
 API_OVERVIEW = "getLivePromotionOrderOverview"
@@ -71,7 +72,6 @@ def _parse_funnel(overview: dict) -> dict:
     order_pay_rate = (pay_uv / order_uv * 100) if order_uv else 0
 
     return {
-        "总成交转化率": round(total_convert_rate, 4),
         "直播间曝光人数": exposure,
         "直播间观看人数": join_count,
         "商品曝光人数": product_exp_uv,
@@ -83,6 +83,7 @@ def _parse_funnel(overview: dict) -> dict:
         "商品点击率": round(product_click_rate, 2),
         "点击下单率": round(click_order_rate, 2),
         "下单成交率": round(order_pay_rate, 2),
+        "总成交转化率": round(total_convert_rate, 4),
     }
 
 
@@ -129,10 +130,19 @@ def collect_people_statistic(page: Page, promotion_id: str) -> dict | None:
     def on_response(response: Response):
         if "channels.weixin.qq.com" not in response.url:
             return
-        if response.status not in (200, 201) or not response.body():
+        if response.status not in (200, 201):
             return
-        data = _parse_json(response.body())
-        if not data or data.get("errCode") != 0:
+        try:
+            body = response.body()
+            if not body:
+                return
+            data = _parse_json(body)
+        except Exception:
+            return
+        if not data:
+            return
+        err = data.get("errCode")
+        if err is not None and err != 0:
             return
         if API_USER_FEATURE in response.url:
             user_feature_responses.append(data)
@@ -141,10 +151,17 @@ def collect_people_statistic(page: Page, promotion_id: str) -> dict | None:
 
     page.on("response", on_response)
 
-    url = _build_people_url(promotion_id)
-    log(TAG_PEOPLE, f"跳转人群分析页 | pid={promotion_id}")
-    page.goto(url, wait_until="networkidle")
-    page.wait_for_timeout(4000)
+    current_url = page.url
+    if "live-promote-statistic" in current_url:
+        people_url = current_url.replace("/order", "/people")
+        log(TAG_PEOPLE, f"从统计页切换到人群分析 | pid={promotion_id}")
+    else:
+        people_url = _build_people_url(promotion_id)
+        log(TAG_PEOPLE, f"跳转人群分析页 | pid={promotion_id}")
+
+    page.goto(people_url, wait_until="domcontentloaded")
+    page.wait_for_timeout(8000)
+    page.remove_listener("response", on_response)
 
     funnel = _parse_funnel(overview_responses[-1]) if overview_responses else {}
     user_feature = _parse_user_feature(user_feature_responses[-1]) if user_feature_responses else {}
@@ -152,6 +169,8 @@ def collect_people_statistic(page: Page, promotion_id: str) -> dict | None:
     if funnel or user_feature:
         save_order_people_statistic(promotion_id, funnel, user_feature)
         log(TAG_PEOPLE, f"保存完成 | pid={promotion_id} | 漏斗={bool(funnel)} | 人群分布={bool(user_feature)}")
+        capture_page_screenshot(page, promotion_id, "people", TAG_PEOPLE)
         return {"人群漏斗": funnel, "人群分布": user_feature}
     log(TAG_PEOPLE, f"无有效数据 | pid={promotion_id} | overview={len(overview_responses)} | user_feature={len(user_feature_responses)}")
+    capture_page_screenshot(page, promotion_id, "people", TAG_PEOPLE)
     return None

@@ -31,4 +31,4 @@ def goto_create_order(page, promotion_id: str, **kwargs) -> None:
     :param kwargs: 传给 build_create_order_url 的 promote_type、order_type
     """
     url = build_create_order_url(promotion_id, **kwargs)
-    page.goto(url, wait_until="networkidle")
+    page.goto(url, wait_until="domcontentloaded")

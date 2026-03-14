@@ -15,6 +15,22 @@ def _migrate_add_account_id(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE orders ADD COLUMN account_id TEXT")
 
 
+def _migrate_add_actual_roi(conn: sqlite3.Connection) -> None:
+    """为已有 orders 表添加 actual_roi 列"""
+    cur = conn.execute("PRAGMA table_info(orders)")
+    cols = [r[1] for r in cur.fetchall()]
+    if "actual_roi" not in cols:
+        conn.execute("ALTER TABLE orders ADD COLUMN actual_roi REAL DEFAULT 0")
+
+
+def _migrate_add_ecommerce_effect(conn: sqlite3.Connection) -> None:
+    """为已有 order_detail_data 表添加 ecommerce_effect_json 列"""
+    cur = conn.execute("PRAGMA table_info(order_detail_data)")
+    cols = [r[1] for r in cur.fetchall()]
+    if "ecommerce_effect_json" not in cols:
+        conn.execute("ALTER TABLE order_detail_data ADD COLUMN ecommerce_effect_json TEXT")
+
+
 def get_conn() -> sqlite3.Connection:
     """获取数据库连接"""
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
@@ -59,6 +75,8 @@ def init_db() -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_cost ON orders(cost_yuan)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_create_time ON orders(create_time)")
     _migrate_add_account_id(conn)
+    _migrate_add_actual_roi(conn)
+    _migrate_add_ecommerce_effect(conn)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS order_create_config (
             promotion_id TEXT PRIMARY KEY,
@@ -115,8 +133,8 @@ def save_orders(orders: list[dict], account_id: str | None = None) -> int:
                 """
                 INSERT INTO orders (promotion_id, account_id, nick_name, create_time, cost, cost_yuan,
                     status, target, order_name, budget, bid_roi, duration, join_count,
-                    exposure_count, product_click_count, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    exposure_count, product_click_count, created_at, actual_roi)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(promotion_id) DO UPDATE SET
                     account_id=excluded.account_id,
                     nick_name=excluded.nick_name,
@@ -132,7 +150,8 @@ def save_orders(orders: list[dict], account_id: str | None = None) -> int:
                     join_count=excluded.join_count,
                     exposure_count=excluded.exposure_count,
                     product_click_count=excluded.product_click_count,
-                    created_at=excluded.created_at
+                    created_at=excluded.created_at,
+                    actual_roi=excluded.actual_roi
                 """,
                 row,
             )
@@ -148,6 +167,14 @@ def _map_promotion_target(v) -> str:
     return m.get(int(v) if v is not None else 0, str(v) if v else "")
 
 
+_STATUS_MAP = {
+    "0": "待审核", "1": "待开始", "2": "投放中", "3": "已完成",
+    "4": "已拒绝", "5": "已取消", "6": "已暂停", "7": "审核中",
+    "8": "已预约", "9": "预约取消", "10": "创建中", "11": "待支付",
+    "12": "退款中", "13": "已退款", "14": "结算中",
+}
+
+
 def _order_to_row(o: dict, account_id: str | None = None) -> tuple | None:
     """将订单 dict 转为数据库行（MCP 验证：searchLivePromotionOrderList 结构）"""
     pid = o.get("promotionId")
@@ -157,22 +184,43 @@ def _order_to_row(o: dict, account_id: str | None = None) -> tuple | None:
     acct = o.get("acctInfo") or order_info.get("acctInfo") or {}
     indicator = o.get("indicatorData") or {}
     data_info = indicator.get("dataInfo") or {}
-    cost = int(data_info.get("cost") or 0)
+
+    consume_quota = int(order_info.get("actualConsumeQuota") or 0)
+    fallback_cost = int(data_info.get("cost") or 0)
+    cost = consume_quota if consume_quota else fallback_cost
     cost_yuan = cost / 10.0
-    create_time = o.get("createTime") or ""
-    status = o.get("status") or ""
+
+    create_time = o.get("createTime") or order_info.get("createTime") or ""
+    raw_status = str(o.get("status") or "")
+    status = _STATUS_MAP.get(raw_status, raw_status)
     target = o.get("targetName") or o.get("target") or _map_promotion_target(o.get("promotionTarget") or order_info.get("promotionTarget"))
     order_name = o.get("promotionName") or o.get("orderName") or order_info.get("orderName") or order_info.get("promotionName") or ""
     budget = int(o.get("budget") or order_info.get("costQuota") or 0)
-    roi = o.get("bidRoi") or o.get("targetRoi") or order_info.get("bidRoi") or order_info.get("targetRoi")
-    if roi is None:
-        r100 = (order_info.get("suggest") or {}).get("roiBidX100")
-        roi = r100 / 100.0 if r100 is not None else ""
+    suggest = order_info.get("suggest") or {}
+    target_info = o.get("promotionTargetInfo") or order_info.get("promotionTargetInfo") or {}
+    roi = (
+        o.get("bidRoi") or o.get("targetRoi")
+        or order_info.get("bidRoi") or order_info.get("targetRoi")
+        or target_info.get("bidRoi") or target_info.get("targetRoi")
+        or suggest.get("bidRoi") or suggest.get("targetRoi")
+    )
+    if roi is None or roi == "":
+        r100 = suggest.get("roiBidX100") or target_info.get("roiBidX100") or o.get("roiBidX100")
+        if r100 is not None:
+            v = int(r100)
+            roi = v / 100.0 if v >= 100 else v
+        else:
+            roi = ""
     bid_roi = str(roi) if roi != "" else ""
-    duration = o.get("promotionDuration") or order_info.get("duration") or ""
+    duration = int(order_info.get("actualDuration") or 0)
     join_count = int(data_info.get("joinCount") or 0)
     exposure_count = int(data_info.get("exposureCount") or 0)
     product_click_count = int(data_info.get("productClickCount") or 0)
+
+    extra = (o.get("promotionExtraIndicator") or {}).get("productIndicator") or {}
+    raw_roi = extra.get("totalPayRoi")
+    actual_roi = round(int(raw_roi) / 100.0, 2) if raw_roi and str(raw_roi).isdigit() and int(raw_roi) > 0 else 0
+
     return (
         pid,
         account_id or "",
@@ -190,6 +238,7 @@ def _order_to_row(o: dict, account_id: str | None = None) -> tuple | None:
         exposure_count,
         product_click_count,
         datetime.now().isoformat(),
+        actual_roi,
     )
 
 
@@ -234,6 +283,27 @@ def get_existing_promotion_ids() -> set[str]:
     return ids
 
 
+def is_order_detail_collected(promotion_id: str) -> bool:
+    """
+    检测订单详情链是否已采集（create_config、detail、ecommerce、people 四表均有记录则视为已采集）
+    """
+    init_db()
+    conn = get_conn()
+    cur = conn.execute(
+        """
+        SELECT
+            (SELECT 1 FROM order_create_config WHERE promotion_id = ? LIMIT 1) AS has_config,
+            (SELECT 1 FROM order_detail_data WHERE promotion_id = ? LIMIT 1) AS has_detail,
+            (SELECT 1 FROM order_ecommerce_statistic WHERE promotion_id = ? LIMIT 1) AS has_ecommerce,
+            (SELECT 1 FROM order_people_statistic WHERE promotion_id = ? LIMIT 1) AS has_people
+        """,
+        (promotion_id,) * 4,
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row and all(row)
+
+
 def save_order_create_config(promotion_id: str, config: dict) -> None:
     """保存订单的 create-order 页面配置（结构化，按大标题分组）"""
     init_db()
@@ -252,28 +322,44 @@ def save_order_create_config(promotion_id: str, config: dict) -> None:
     conn.close()
 
 
+def update_order_bid_roi_if_empty(promotion_id: str, bid_roi: str) -> None:
+    """当 orders.bid_roi 为空时，用详情页的目标成交ROI 回填"""
+    if not (bid_roi or str(bid_roi).strip()):
+        return
+    init_db()
+    conn = get_conn()
+    cur = conn.execute("SELECT bid_roi FROM orders WHERE promotion_id = ?", (promotion_id,))
+    row = cur.fetchone()
+    if row and (not row[0] or str(row[0]).strip() == "0" or str(row[0]).strip() == "0.0"):
+        conn.execute("UPDATE orders SET bid_roi = ? WHERE promotion_id = ?", (str(bid_roi).strip(), promotion_id))
+        conn.commit()
+    conn.close()
+
+
 def save_order_detail_data(
     promotion_id: str,
     heating_info: dict,
     consumption_progress: dict,
     effect_summary: dict,
     effect_timeline: list,
+    ecommerce_effect: dict | None = None,
 ) -> None:
-    """保存订单详情页数据（加热信息、消耗进度、加热效果汇总、十分钟级时间线）"""
+    """保存订单详情页数据（加热信息、消耗进度、加热效果汇总、十分钟级时间线、电商加热效果）"""
     init_db()
     conn = get_conn()
     conn.execute(
         """
         INSERT INTO order_detail_data (
             promotion_id, heating_info_json, consumption_progress_json,
-            effect_summary_json, effect_timeline_json, created_at
+            effect_summary_json, effect_timeline_json, ecommerce_effect_json, created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(promotion_id) DO UPDATE SET
             heating_info_json=excluded.heating_info_json,
             consumption_progress_json=excluded.consumption_progress_json,
             effect_summary_json=excluded.effect_summary_json,
             effect_timeline_json=excluded.effect_timeline_json,
+            ecommerce_effect_json=excluded.ecommerce_effect_json,
             created_at=excluded.created_at
         """,
         (
@@ -282,6 +368,7 @@ def save_order_detail_data(
             json.dumps(consumption_progress, ensure_ascii=False),
             json.dumps(effect_summary, ensure_ascii=False),
             json.dumps(effect_timeline, ensure_ascii=False),
+            json.dumps(ecommerce_effect, ensure_ascii=False) if ecommerce_effect else None,
             datetime.now().isoformat(),
         ),
     )
@@ -294,7 +381,8 @@ def get_order_detail_data(promotion_id: str) -> dict | None:
     init_db()
     conn = get_conn()
     cur = conn.execute(
-        "SELECT heating_info_json, consumption_progress_json, effect_summary_json, effect_timeline_json "
+        "SELECT heating_info_json, consumption_progress_json, effect_summary_json, "
+        "effect_timeline_json, ecommerce_effect_json "
         "FROM order_detail_data WHERE promotion_id = ?",
         (promotion_id,),
     )
@@ -307,6 +395,7 @@ def get_order_detail_data(promotion_id: str) -> dict | None:
         "消耗进度": json.loads(row[1]) if row[1] else {},
         "直播间加热效果": json.loads(row[2]) if row[2] else {},
         "十分钟级数据": json.loads(row[3]) if row[3] else [],
+        "电商加热效果": json.loads(row[4]) if row[4] else {},
     }
 
 
@@ -430,6 +519,21 @@ def get_account(account_id: str) -> dict | None:
     return dict(row) if row else None
 
 
+def get_account_by_name(account_name: str) -> dict | None:
+    """按账户名查找账号（同名则返回最新的一条）"""
+    if not (account_name or "").strip():
+        return None
+    init_db()
+    conn = get_conn()
+    cur = conn.execute(
+        "SELECT id, account_name, video_account, cookie_path, created_at FROM accounts WHERE account_name = ? ORDER BY created_at DESC LIMIT 1",
+        (account_name.strip(),),
+    )
+    row = cur.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def delete_account(account_id: str) -> bool:
     """删除账号，同时删除 cookie 文件，订单的 account_id 置空"""
     acc = get_account(account_id)
@@ -445,3 +549,18 @@ def delete_account(account_id: str) -> bool:
     if cookie_path.exists():
         cookie_path.unlink()
     return True
+
+
+def clear_all_data() -> int:
+    """清空所有订单及关联数据（保留账号），返回删除的订单数"""
+    init_db()
+    conn = get_conn()
+    count = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
+    conn.execute("DELETE FROM order_people_statistic")
+    conn.execute("DELETE FROM order_ecommerce_statistic")
+    conn.execute("DELETE FROM order_detail_data")
+    conn.execute("DELETE FROM order_create_config")
+    conn.execute("DELETE FROM orders")
+    conn.commit()
+    conn.close()
+    return count

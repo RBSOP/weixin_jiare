@@ -31,6 +31,9 @@ AUTH_STATE_FILE = os.path.join(os.path.dirname(__file__), "auth_state.json")
 # 账号 cookie 存储目录（每个账号一个文件）
 ACCOUNT_COOKIE_DIR = os.path.join(os.path.dirname(__file__), "data", "account_cookies")
 
+# 页面截图存储目录（按 promotion_id 分目录）
+SCREENSHOT_DIR = os.path.join(os.path.dirname(__file__), "data", "screenshots")
+
 # 采集数据输出目录（已弃用，改用数据库）
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "output")
 
@@ -43,7 +46,7 @@ COST_MIN = 500
 # 翻页上限，None 表示不限制（增量采集时遇已存在会提前停止）
 MAX_PAGES = None
 
-# 全量重采时清除 checkpoint，设为 True 则每次从头翻到底
+# 全量重采：设为 True 时订单列表不按库内 ID 提前停止，从头翻到底
 FULL_RESYNC = False
 
 # 再来一单页面 base URL
@@ -66,6 +69,6 @@ LOG_BACKUP_COUNT = 5
 
 # Web 展示页
 WEB_HOST = "0.0.0.0"
-WEB_PORT = 5000
+WEB_PORT = 9527
 UI_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "data", "ui_config.json")
 PENDING_ACTION_FILE = os.path.join(os.path.dirname(__file__), "data", "pending_action.json")

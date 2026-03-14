@@ -15,7 +15,7 @@ def wait_for_home(page: Page, timeout: int = 10000) -> bool:
 
 def goto_home(page: Page) -> None:
     """导航到首页"""
-    page.goto(HOME_URL, wait_until="networkidle")
+    page.goto(HOME_URL, wait_until="domcontentloaded")
 
 
 def is_on_home(page: Page) -> bool:
