@@ -76,7 +76,6 @@ def init_db() -> None:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_create_time ON orders(create_time)")
     _migrate_add_account_id(conn)
     _migrate_add_actual_roi(conn)
-    _migrate_add_ecommerce_effect(conn)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS order_create_config (
             promotion_id TEXT PRIMARY KEY,
@@ -96,6 +95,7 @@ def init_db() -> None:
             FOREIGN KEY (promotion_id) REFERENCES orders(promotion_id)
         )
     """)
+    _migrate_add_ecommerce_effect(conn)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS order_ecommerce_statistic (
             promotion_id TEXT PRIMARY KEY,
